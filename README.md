@@ -1,4 +1,4 @@
-# ☕ 星茶铺 (Star Tea Shop) - AI 智能学习知识管家
+# 🌟 星知库 (Star Knowledge Base)
 
 <p align="center">
   <img src="https://img.shields.io/badge/Flutter-3.x-blue.svg" alt="Flutter">

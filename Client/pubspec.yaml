@@ -1,5 +1,5 @@
-name: study_agent_app
-description: "AI 智能学习知识管家 - 星茶铺"
+name: star_knowledge_base
+description: "AI 智能学习知识管家 - 星知库"
 publish_to: 'none'
 version: 1.0.0+1
 

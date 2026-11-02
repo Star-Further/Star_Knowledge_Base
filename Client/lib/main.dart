@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '星茶铺 - AI知识库',
+      title: '星知库 - AI知识库',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
@@ -341,7 +341,7 @@ class _KnowledgeHomePageState extends State<KnowledgeHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('星茶铺 - AI知识库'),
+        title: const Text('星知库 - AI知识库'),
         backgroundColor: Colors.blue.shade800,
         foregroundColor: Colors.white,
         actions: [

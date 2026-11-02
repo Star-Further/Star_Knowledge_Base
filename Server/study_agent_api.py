@@ -20,7 +20,7 @@ if not DEEPSEEK_API_KEY:
 
 client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 
-app = FastAPI(title="AI Study Agent API")
+app = FastAPI(title="星知库 API")
 
 app.add_middleware(
     CORSMiddleware,
