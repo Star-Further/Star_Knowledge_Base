@@ -52,3 +52,5 @@ app.*.map.json
 # 忽略所有层级的 build 文件夹
 **/build/
 **/.dart_tool/
+# 忽略前端的真实服务器配置
+Client/lib/config.dart
