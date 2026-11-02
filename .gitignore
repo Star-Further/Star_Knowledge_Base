@@ -1,0 +1,54 @@
+# ==========================================
+# 🔒 1. 核心隐私安全：绝对不允许上传的文件
+# ==========================================
+.env
+.env.local
+*.db
+knowledge.db
+*.sqlite3
+
+# ==========================================
+# 🐍 2. Python 后端忽略规则 (server/)
+# ==========================================
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+ENV/
+.pytest_cache/
+
+# ==========================================
+# 📱 3. Flutter 前端忽略规则 (client/)
+# ==========================================
+*.class
+*.log
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+*.iml
+*.ipr
+*.iws
+.idea/
+/android/app/debug
+/android/app/profile
+/android/app/release
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+app.*.symbols
+app.*.map.json
+.widget_preview/
+# 忽略所有层级的 build 文件夹
+**/build/
+**/.dart_tool/
