@@ -2,11 +2,32 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_math_fork/flutter_math.dart';
-import 'config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppSettings.load(); // 启动时加载配置
   runApp(const MyApp());
+}
+
+// ================= 全局配置管理 =================
+class AppSettings {
+  static String apiBaseUrl = 'http://127.0.0.1:8081/api';
+  static String apiKey = '';
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    apiBaseUrl = prefs.getString('apiBaseUrl') ?? 'http://127.0.0.1:8081/api';
+    apiKey = prefs.getString('apiKey') ?? '';
+  }
+
+  static Future<void> save(String url, String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('apiBaseUrl', url);
+    await prefs.setString('apiKey', key);
+    apiBaseUrl = url;
+    apiKey = key;
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -19,7 +40,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
-        fontFamily: 'HarmonyOS', // 启用鸿蒙字体
+        fontFamily: 'HarmonyOS',
       ),
       home: const MainScaffold(),
     );
@@ -62,7 +83,7 @@ class MathText extends StatelessWidget {
   }
 }
 
-// ================= 主页（包含底部导航） =================
+// ================= 主页 =================
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
   @override
@@ -75,24 +96,120 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _currentIndex == 0 ? const KnowledgePage() : const FavoritePage(),
+      body: _currentIndex == 0 
+          ? const KnowledgePage() 
+          : _currentIndex == 1 
+              ? const FavoritePage()
+              : const ProfilePage(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.menu_book), label: '知识库'),
           NavigationDestination(icon: Icon(Icons.star), label: '错题本'),
+          NavigationDestination(icon: Icon(Icons.person), label: '个人中心'),
         ],
       ),
     );
   }
 }
 
-// ================= 单张卡片组件（带收藏和删除） =================
+// ================= 个人中心页面 =================
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final TextEditingController _urlController = TextEditingController();
+  final TextEditingController _keyController = TextEditingController();
+  bool _isObscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlController.text = AppSettings.apiBaseUrl;
+    _keyController.text = AppSettings.apiKey;
+  }
+
+  Future<void> _saveSettings() async {
+    String url = _urlController.text.trim();
+    if (url.endsWith('/')) url = url.substring(0, url.length - 1); 
+    await AppSettings.save(url, _keyController.text.trim());
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ 配置保存成功！')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('个人中心'),
+        backgroundColor: Colors.blue.shade800,
+        foregroundColor: Colors.white,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text('⚙️ 系统配置', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          const Text('提示：API Key 不填将默认使用服务器配置的 Key。', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 20),
+          
+          TextField(
+            controller: _urlController,
+            decoration: InputDecoration(
+              labelText: '服务器 API 地址',
+              hintText: '例如：http://121.41.198.157:8081/api',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              prefixIcon: const Icon(Icons.link),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          TextField(
+            controller: _keyController,
+            obscureText: _isObscure,
+            decoration: InputDecoration(
+              labelText: 'DeepSeek API Key (可选)',
+              hintText: 'sk-xxxxxxxxxxxxxxxx',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              prefixIcon: const Icon(Icons.key),
+              suffixIcon: IconButton(
+                icon: Icon(_isObscure ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setState(() => _isObscure = !_isObscure),
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+
+          ElevatedButton(
+            onPressed: _saveSettings,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade800,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('保存配置', style: TextStyle(fontSize: 16)),
+          ),
+          const SizedBox(height: 40),
+          const Center(
+            child: Text('星知库 v1.2.0\nPowered by Flutter & DeepSeek', 
+              textAlign: TextAlign.center, 
+              style: TextStyle(color: Colors.grey)
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ================= 卡片组件 =================
 class QuestionCard extends StatelessWidget {
   final dynamic item;
   final VoidCallback onRefresh;
-
   const QuestionCard({super.key, required this.item, required this.onRefresh});
 
   Future<void> _deleteRecord(BuildContext context) async {
@@ -110,7 +227,7 @@ class QuestionCard extends StatelessWidget {
 
     if (confirm == true) {
       try {
-        await http.delete(Uri.parse('$kApiBaseUrl/record/${item['id']}'));
+        await http.delete(Uri.parse('${AppSettings.apiBaseUrl}/record/${item['id']}'));
         onRefresh();
       } catch (e) {
         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('删除失败')));
@@ -120,7 +237,7 @@ class QuestionCard extends StatelessWidget {
 
   Future<void> _toggleFavorite(BuildContext context) async {
     try {
-      await http.post(Uri.parse('$kApiBaseUrl/record/${item['id']}/favorite'));
+      await http.post(Uri.parse('${AppSettings.apiBaseUrl}/record/${item['id']}/favorite'));
       onRefresh();
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('操作失败')));
@@ -149,20 +266,16 @@ class QuestionCard extends StatelessWidget {
                     IconButton(
                       icon: Icon(isFav ? Icons.star : Icons.star_border, color: Colors.amber),
                       onPressed: () => _toggleFavorite(context),
-                      tooltip: isFav ? '取消收藏' : '加入错题本',
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline, color: Colors.grey),
                       onPressed: () => _deleteRecord(context),
-                      tooltip: '删除',
                     ),
                   ],
                 )
               ],
             ),
             const Divider(),
-            
-            // 知识点
             const Text('💡 知识点精讲：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
             ...(content['knowledge_points'] as List).map((kp) {
@@ -202,7 +315,6 @@ class QuestionCard extends StatelessWidget {
                 ),
               );
             }).toList(),
-            
             const SizedBox(height: 12),
             const Text('📐 核心公式：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
@@ -217,7 +329,6 @@ class QuestionCard extends StatelessWidget {
                 );
               }).toList(),
             ),
-            
             const SizedBox(height: 16),
             const Text('🛠 解题思路与方法：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Container(
@@ -227,7 +338,6 @@ class QuestionCard extends StatelessWidget {
               decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
               child: MathText('${content['solution_method']}', style: const TextStyle(height: 1.6)),
             ),
-            
             const SizedBox(height: 16),
             const Text('🚀 举一反三：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ...(content['similar_questions'] as List).map((sq) {
@@ -279,7 +389,7 @@ class _KnowledgePageState extends State<KnowledgePage> {
   Future<void> fetchData() async {
     setState(() => isLoading = true);
     try {
-      final url = Uri.parse('$kApiBaseUrl/knowledge_tree?keyword=$_searchKeyword');
+      final url = Uri.parse('${AppSettings.apiBaseUrl}/knowledge_tree?keyword=$_searchKeyword');
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
@@ -303,9 +413,12 @@ class _KnowledgePageState extends State<KnowledgePage> {
     setState(() => isParsing = true);
     try {
       final response = await http.post(
-        Uri.parse('$kApiBaseUrl/parse'),
+        Uri.parse('${AppSettings.apiBaseUrl}/parse'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'url': link}),
+        body: jsonEncode({
+          'url': link,
+          'api_key': AppSettings.apiKey 
+        }),
       );
       if (response.statusCode == 200) {
         _linkController.clear();
@@ -339,7 +452,6 @@ class _KnowledgePageState extends State<KnowledgePage> {
 
     Widget sidebar = Column(
       children: [
-        // 搜索框
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: TextField(
@@ -382,7 +494,7 @@ class _KnowledgePageState extends State<KnowledgePage> {
                                 item: chapterEntry.value[index],
                                 onRefresh: () {
                                   fetchData();
-                                  Navigator.pop(context); // 删除后关掉弹窗
+                                  Navigator.pop(context); 
                                 },
                               ),
                             ),
@@ -411,7 +523,6 @@ class _KnowledgePageState extends State<KnowledgePage> {
       drawer: isDesktop ? null : Drawer(child: sidebar),
       body: Column(
         children: [
-          // 解析输入框
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.blue.shade50,
@@ -444,7 +555,6 @@ class _KnowledgePageState extends State<KnowledgePage> {
               ],
             ),
           ),
-          
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -484,7 +594,7 @@ class _FavoritePageState extends State<FavoritePage> {
   Future<void> fetchData() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('$kApiBaseUrl/knowledge_tree?only_favorite=true'));
+      final response = await http.get(Uri.parse('${AppSettings.apiBaseUrl}/knowledge_tree?only_favorite=true'));
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
         setState(() {

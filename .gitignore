@@ -1,17 +1,25 @@
 # ==========================================
-# 🔒 1. 核心隐私安全：绝对不允许上传的文件
+# 🔒 1. 核心隐私与安全（绝对禁止上传）
 # ==========================================
 .env
-.env.local
+.env.*
+!.env.example
+
+# 本地数据库文件
 *.db
-knowledge.db
 *.sqlite3
+knowledge.db
+
+# 个人配置备份/备忘录
+config_note.txt
+Client/lib/config.dart
 
 # ==========================================
-# 🐍 2. Python 后端忽略规则 (server/)
+# 🐍 2. Python 后端忽略规则 (Server/)
 # ==========================================
 __pycache__/
 *.py[cod]
+*$py.class
 venv/
 .venv/
 env/
@@ -19,38 +27,48 @@ ENV/
 .pytest_cache/
 
 # ==========================================
-# 📱 3. Flutter 前端忽略规则 (client/)
+# 📱 3. Flutter/Dart 前端忽略规则 (Client/)
 # ==========================================
-*.class
-*.log
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
+# 编译产物
+**/build/
+**/.dart_tool/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/coverage/
+
+# 安卓编译产物
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# 符号化与混淆文件
+app.*.symbols
+app.*.map.json
+.widget_preview/
+
+# ==========================================
+# 🛠️ 4. IDE 与系统文件
+# ==========================================
+# IntelliJ / Android Studio
 *.iml
 *.ipr
 *.iws
 .idea/
-/android/app/debug
-/android/app/profile
-/android/app/release
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-app.*.symbols
-app.*.map.json
-.widget_preview/
-# 忽略所有层级的 build 文件夹
-**/build/
-**/.dart_tool/
-# 忽略前端的真实服务器配置
-Client/lib/config.dart
+
+# VS Code (如果你不想共享本地配置，取消注释下面这行)
+# .vscode/
+
+# 系统垃圾文件
+.DS_Store
+Thumbs.db
+*.swp
+*.class
+*.log
+
+# 历史记录
+.history/
+.svn/

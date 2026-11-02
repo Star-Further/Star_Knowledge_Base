@@ -1,22 +1,17 @@
 import re
 import json
 import sqlite3
-import asyncio
 import os
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from playwright.async_api import async_playwright
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-if not DEEPSEEK_API_KEY:
-    raise ValueError("请先在 .env 文件中配置 DEEPSEEK_API_KEY")
+SERVER_DEFAULT_KEY = os.getenv("DEEPSEEK_API_KEY")
 
-client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 app = FastAPI(title="星知库 API")
 
 app.add_middleware(
@@ -54,11 +49,9 @@ SYSTEM_PROMPT = """
 }
 """
 
-# 初始化数据库（新增 is_favorite 字段）
 def init_db():
     conn = sqlite3.connect('knowledge.db')
     c = conn.cursor()
-    # 尝试建表（带 is_favorite 字段）
     c.execute('''CREATE TABLE IF NOT EXISTS knowledge_records
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   source_url TEXT, subject TEXT, chapter TEXT, 
@@ -71,13 +64,14 @@ init_db()
 
 class ParseRequest(BaseModel):
     url: str
+    api_key: str = "" # 接收前端传来的 Key
 
 async def extract_text_from_url(url: str) -> str:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
         page = await browser.new_page()
         await page.goto(url, wait_until="networkidle", timeout=60000)
-        page.wait_for_timeout(2000)
+        await page.wait_for_timeout(2000)
         full_text = await page.locator("body").inner_text()
         await browser.close()
         return re.sub(r'来自分享的对话|该对话来自分享，由 AI 生成，请仔细甄别。', '', full_text).strip()
@@ -85,8 +79,14 @@ async def extract_text_from_url(url: str) -> str:
 @app.post("/api/parse")
 async def parse_question(req: ParseRequest):
     try:
+        current_key = req.api_key.strip() if req.api_key and req.api_key.strip() else SERVER_DEFAULT_KEY
+        if not current_key:
+            raise HTTPException(status_code=400, detail="未配置 DeepSeek API Key")
+
+        temp_client = OpenAI(api_key=current_key, base_url="https://api.deepseek.com")
+
         text = await extract_text_from_url(req.url)
-        response = client.chat.completions.create(
+        response = temp_client.chat.completions.create(
             model="deepseek-flash",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -106,9 +106,9 @@ async def parse_question(req: ParseRequest):
         
         return {"code": 200, "msg": "解析并保存成功", "data": result_json}
     except Exception as e:
+        print(f"Parse Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# 获取知识树 (支持只看收藏)
 @app.get("/api/knowledge_tree")
 async def get_knowledge_tree(only_favorite: bool = False, keyword: str = ""):
     conn = sqlite3.connect('knowledge.db')
@@ -117,17 +117,13 @@ async def get_knowledge_tree(only_favorite: bool = False, keyword: str = ""):
     
     query = "SELECT * FROM knowledge_records WHERE 1=1"
     params = []
-    
-    if only_favorite:
-        query += " AND is_favorite = 1"
-    
+    if only_favorite: query += " AND is_favorite = 1"
     if keyword:
         query += " AND (content_json LIKE ? OR subject LIKE ? OR chapter LIKE ?)"
         kw = f"%{keyword}%"
         params.extend([kw, kw, kw])
         
     query += " ORDER BY created_at DESC"
-    
     c.execute(query, params)
     rows = c.fetchall()
     conn.close()
@@ -137,37 +133,29 @@ async def get_knowledge_tree(only_favorite: bool = False, keyword: str = ""):
         r["content_json"] = json.loads(r["content_json"])
     return {"code": 200, "data": records}
 
-# 删除记录
 @app.delete("/api/record/{record_id}")
 async def delete_record(record_id: int):
-    try:
-        conn = sqlite3.connect('knowledge.db')
-        c = conn.cursor()
-        c.execute("DELETE FROM knowledge_records WHERE id = ?", (record_id,))
-        conn.commit()
-        conn.close()
-        return {"code": 200, "msg": "删除成功"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    conn = sqlite3.connect('knowledge.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM knowledge_records WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+    return {"code": 200, "msg": "删除成功"}
 
-# 切换收藏状态
 @app.post("/api/record/{record_id}/favorite")
 async def toggle_favorite(record_id: int):
-    try:
-        conn = sqlite3.connect('knowledge.db')
-        c = conn.cursor()
-        c.execute("SELECT is_favorite FROM knowledge_records WHERE id = ?", (record_id,))
-        row = c.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="记录不存在")
-            
-        new_status = 0 if row[0] == 1 else 1
-        c.execute("UPDATE knowledge_records SET is_favorite = ? WHERE id = ?", (new_status, record_id))
-        conn.commit()
+    conn = sqlite3.connect('knowledge.db')
+    c = conn.cursor()
+    c.execute("SELECT is_favorite FROM knowledge_records WHERE id = ?", (record_id,))
+    row = c.fetchone()
+    if not row:
         conn.close()
-        return {"code": 200, "msg": "状态更新成功", "is_favorite": new_status}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=404, detail="记录不存在")
+    new_status = 0 if row[0] == 1 else 1
+    c.execute("UPDATE knowledge_records SET is_favorite = ? WHERE id = ?", (new_status, record_id))
+    conn.commit()
+    conn.close()
+    return {"code": 200, "msg": "状态更新成功", "is_favorite": new_status}
 
 if __name__ == "__main__":
     import uvicorn
